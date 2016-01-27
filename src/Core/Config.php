@@ -8,7 +8,7 @@ class Config
 	private static $database='test';
 	private static $host='localhost';
 	private static $username='root';
-	private static $password='rafael92';
+	private static $password='123';
 	private static $charset='utf8';
 
 	public static function getDatabase(){
