@@ -5,12 +5,18 @@ namespace app\Models;
 use app\Core\DB;
 
 abstract class AbstractModel{
+
+	/**
+	 * Table/Entity name
+	 * @var
+	 */
 	protected $table;
 	protected $primary = 'id';
 	protected $columns = [];
 	protected $sqlSelect = "select {select} {from} {join} {where} {groupBy} {having} {orderBy} {start} {length}";
 	protected $sqlInsert = "insert into {insert} ({columns}) values ({values})";
 	protected $sqlUpdate = "update {update} set {columns} {where}";
+	protected $sqlDelete = "delete from {delete} where $this->primary = :primary";
 
 	private $paramCount = 0;
 	private $paramsToBind = [];
@@ -159,6 +165,61 @@ abstract class AbstractModel{
 		$stmt->bindParam(':primary',$id, $this->pdoType(gettype($id)));
 		$stmt->execute();
 		return $stmt->fetch(\PDO::FETCH_OBJ);
+	}
+
+	public function insert(){
+		$this->pdo = DB::getInstance();
+		$columns = [];
+		$values[];
+		foreach($this->columns as $column){
+			if(isset($this->{$column})){
+				$columns[] = $column;
+				$values[] = ':'.$column;
+			}
+		}
+		$this->sqlInsert = str_replace(['{insert}','{columns}','{values}'],[$this->table,implode(',',$columns),implode(','$values)]);
+		$stmt = $this->pdo->prepare($this->sqlInsert);
+		foreach ($columns as $column) {
+			$stmt->bindParam(':'.$column, $this->{$column},$this->pdoType(gettype($this->{$column}));
+		}
+
+		return $stmt->execute();
+
+	}
+
+	public function update($where = null){
+		if(!isset())
+			throw new \InvalidArgumentException("Nothing to update, fill the primary key field");
+		if(is_null($where))
+			$where = "$this->primary = $this->{$this->primary}";
+		$this->pdo = DB::getInstance();
+		$columns = [];
+		foreach($this->columns as $column){
+			if(isset($this->{$column})){
+				$columns[] = []$column=>':'.$column];
+			}
+		}
+		$this->sqlUpdate = str_replace(['{update}','{columns}','{where}'],[$this->table,implode(',',$columns),$where]);
+		$stmt = $this->pdo->prepare($this->sqlInsert);
+		foreach ($columns as $key=>$value) {
+			$stmt->bindParam($value, $this->{$key},$this->pdoType(gettype($this->{$key}));
+		}
+
+		return $stmt->execute();
+	}
+
+	public function save(){
+		return isset($this->{$this->primary})?$this->update():$this->insert()	;
+	}
+
+	public function delete(){
+		if(!isset($this->{$this->primary}))
+			throw new \InvalidArgumentException("No value found for key $this->primary");
+		$this->sqlDelete = str_replace(['{delete}'],[$this->table],$this->sqlDelete);
+		$this->pdo = DB::getInstance();
+		$stmt = $this->pdo->prepare($this->sqlDelete);
+		$stmt->bindParam(':primary',$this->{$this->primary},gettype($this->{$this->primary}));
+		return $stmt->execute();
 	}
 
 	private function pdoType($phpType){
