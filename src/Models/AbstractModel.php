@@ -38,30 +38,37 @@ abstract class AbstractModel{
 		return $this;
 	}
 
-	public function join($table, $on, Array $params = null){
-		if(strpos($this->on, '?') !== false && !is_null($params)){
+	public function join($table, $on, Array $params = null, $joinType = 'inner'){
+		$join = $joinType.' join ';
+		if(strpos($on, '?') !== false && !is_null($params)){
 			$occurrences = substr_count($on, '?');
 			if(count($params) != $occurrences)
 				throw new \InvalidArgumentException("The number of parameters in \$on doesn't match the number of parameters in \$params");
 			for($i = 0; $i < $occurrences; $i++){
-					$this->paramsToBind[] = [':'.++$this->paramCount,$param[$i],$this->pdoType(gettype($param))];
+				$count = ++$this->paramCount;
+				$on = str_replace('?',':'.$count,$on);
+				$this->paramsToBind[] = [':'.$count,$param[$i],$this->pdoType(gettype($param))];
 			}
 		}
 
-		$this->sqlSelect = str_replace('{join}', $table.' on '.$on.' {join} ', $this->sqlSelect);
+		$this->sqlSelect = str_replace('{join}', $join. $table.' on '.$on.' {join} ', $this->sqlSelect);
 
 		return $this;
 	}
 
 	public function where($where, $param = null){
 		if(strpos($this->sqlSelect,' where ') !== false){
-			$where .= ' and ';
+			$where = ' and '.$where;
+		} else {
+			$where = ' where '.$where;
 		}
 		if(strpos($where,'?') !== false && is_null($param)){
 			throw new \InvalidArgumentException("When a ? is specified in \$where clause, you should set a \$param too.");
 		}
 		else if(strpos($where,'?') !== false){
-			$this->paramsToBind[] = [':'.++$this->paramCount,$param,$this->pdoType(gettype($param))];
+			$count = ++$this->paramCount;
+			$where = str_replace('?',':'.$count, $where);
+			$this->paramsToBind[] = [':'.$count,$param,$this->pdoType(gettype($param))];
 		}
 		$this->sqlSelect = str_replace('{where}', $where.' {where} ', $this->sqlSelect);
 
@@ -69,12 +76,14 @@ abstract class AbstractModel{
 	}
 
 	public function whereOr($where, $param = null){
-		$where .= ' or ';
+		$where = ' or '.$where;
 		if(strpos($where,'?') !== false && is_null($param)){
 			throw new \InvalidArgumentException("When a ? is specified in \$where clause, you should set a \$param too.");
 		}
 		else if(strpos($where,'?') !== false){
-			$this->paramsToBind[] = [':'.++$this->paramCount,$param,$this->pdoType(gettype($param))];
+			$count = ++$this->paramCount;
+			$where = str_replace('?',':'.$count, $where);
+			$this->paramsToBind[] = [':'.$count,$param,$this->pdoType(gettype($param))];
 		}
 		$this->sqlSelect = str_replace('{where}', $where.' {where} ', $this->sqlSelect);
 
@@ -91,6 +100,7 @@ abstract class AbstractModel{
 			throw new \InvalidArgumentException("When a ? is specified in \$having clause, you should set a \$param too.");
 		}
 		else if(strpos($having,'?') !== false){
+			$having = str_replace('?',':having',$having);
 			$this->paramsToBind[] = [':having',$param,$this->pdoType(gettype($param))];
 		}
 		$this->sqlSelect = str_replace('{having}', $having, $this->sqlSelect);
@@ -143,7 +153,9 @@ abstract class AbstractModel{
 	}
 
 	public function find($id){
-		$stmt = $this->pdo->prepare("select ".implode(',',$this->columns)." from $table where $primary = :primary limit 1");
+		$this->pdo = DB::getInstance();
+		$columns = array_merge([$this->primary], $this->columns);
+		$stmt = $this->pdo->prepare("select ".implode(',',$columns)." from $this->table where $this->primary = :primary limit 1");
 		$stmt->bindParam(':primary',$id, $this->pdoType(gettype($id)));
 		$stmt->execute();
 		return $stmt->fetch(\PDO::FETCH_OBJ);
@@ -160,7 +172,9 @@ abstract class AbstractModel{
 	}
 
 	private function prepareQuery(){
+		$this->sqlSelect = str_replace('{from}', " * from $this->table", $this->sqlSelect);
 		$this->sqlSelect = str_ireplace(['{select}', '{from}', '{join}', '{where}', '{groupBy}', '{having}', '{orderBy}' ,'{start}','{length}'],'',$this->sqlSelect);
+		$this->sqlSelect = trim($this->sqlSelect);
 	}
 }
 
