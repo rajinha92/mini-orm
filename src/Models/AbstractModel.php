@@ -43,6 +43,11 @@ abstract class AbstractModel{
 	*/
 	protected $sqlDelete = "delete from {delete} where {primary} = :primary";
 	/**
+	* holds pdo statement errors
+	* @var Array
+	*/
+	protected $errorInfo;
+	/**
 	* quantity of parametrs in where clauses
 	* @var integer
 	*/
@@ -240,7 +245,8 @@ abstract class AbstractModel{
 		}
 
 		$stmt->execute();
-		$resultSet = $stmt->fetchAll(\PDO::FETCH_OBJ);
+		$this->errorInfo = $stmt->errorInfo();
+		$resultSet = $stmt->fetchAll(\PDO::FETCH_CLASS, get_class($this));
 		return $resultSet;
 	}
 
@@ -252,7 +258,8 @@ abstract class AbstractModel{
 		$this->pdo = DB::getInstance();
 		$stmt = $this->pdo->prepare("select * from $this->table");
 		$stmt->execute();
-		$resultSet = $stmt->fetchAll(\PDO::FETCH_OBJ);
+		$this->errorInfo = $stmt->errorInfo();
+		$resultSet = $stmt->fetchAll(\PDO::FETCH_CLASS, get_class($this));
 		return $resultSet;
 	}
 
@@ -276,7 +283,8 @@ abstract class AbstractModel{
 		$stmt = $this->pdo->prepare("select ".implode(',',$columns)." from $this->table where $this->primary = :primary limit 1");
 		$stmt->bindParam(':primary',$id, $this->pdoType(gettype($id)));
 		$stmt->execute();
-		return $stmt->fetch(\PDO::FETCH_OBJ);
+		$this->errorInfo = $stmt->errorInfo();
+		return $stmt->fetch(\PDO::FETCH_CLASS, get_class($this));
 	}
 
 	/**
@@ -299,6 +307,7 @@ abstract class AbstractModel{
 			$stmt->bindParam(':'.$column, $this->{$column},$this->pdoType(gettype($this->{$column})));
 		}
 		$stmt->execute();
+		$this->errorInfo = $stmt->errorInfo();
 		$this->{$this->primary} = +$this->pdo->lastInsertId();
 		return $this->{$this->primary};
 
@@ -330,8 +339,9 @@ abstract class AbstractModel{
 		foreach ($columns as $column) {
 			$stmt->bindParam($column[1], $this->{$column[0]},$this->pdoType(gettype($this->{$column[0]})));
 		}
-
-		return $stmt->execute();
+		$return = $stmt->execute();
+		$this->errorInfo = $stmt->errorInfo();
+		return $return;
 	}
 
 	/**
@@ -353,7 +363,29 @@ abstract class AbstractModel{
 		$this->pdo = DB::getInstance();
 		$stmt = $this->pdo->prepare($this->sqlDelete);
 		$stmt->bindParam(':primary',$this->{$this->primary},$this->pdoType(gettype($this->{$this->primary})));
-		return $stmt->execute();
+		$return = $stmt->execute();
+		$this->errorInfo = $stmt->errorInfo();
+		return $return;
+	}
+
+	/**
+	* return the first row of the resultant query or create a new object
+	* @return __CLASS__
+	*/
+	public function firstOrNew(){
+		$resultSet = $this->exec();
+		if(empty($resultSet))
+		return new get_class($this);
+		else
+		return $resultSet[0];
+	}
+
+	/**
+	* return the error info array
+	* @return Array
+	*/
+	public function errorInfo(){
+		return $this->errorInfo();
 	}
 
 	private function pdoType($phpType){
